@@ -14,4 +14,4 @@ minimax|vae_approx|taeh3.safetensors|https://huggingface.co/Kijai/MiniMax-H3-TAE
 minimax|loras|minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors|https://huggingface.co/Kutches/minmax/resolve/main/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors|optional
 
 # MiniMax H3 user LoRA only.
-minimax|loras|HMNSFW_AIO_V2.safetensors|https://huggingface.co/jmew1989/CMFUI/resolve/main/MMH3/HMNSFW_AIO_V2.safetensors|optional
+minimax|loras|HMNSFW-AIO-V2.5.safetensors|https://huggingface.co/cdkkkk/setup/resolve/main/h3/HMNSFW-AIO-V2.5.safetensors|optional
