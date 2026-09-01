@@ -1,0 +1,17 @@
+# set | ComfyUI/models subfolder | filename | Hugging Face resolve URL | optional
+# Core MiniMax H3 stack: mandatory.
+minimax|diffusion_models|minimax_h3_ref2va_pruned_int8_convrot.safetensors|https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors
+minimax|diffusion_models|minimax_h3_fl2va_pruned_int8_convrot.safetensors|https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors
+minimax|text_encoders|qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors|https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors
+minimax|vae|minimax_h3_video_vae_fp16.safetensors|https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors
+minimax|vae|minimax_h3_audio_vae_fp32.safetensors|https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors
+
+# Edit, acceleration, and preview assets: optional.
+minimax|vae|minimax_h3_t1_image_vae_step1597.safetensors|https://huggingface.co/Mamad8/MiniMax-H3-Image-VAE/resolve/main/minimax_h3_t1_image_vae_step1597.safetensors|optional
+minimax|loras|minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors|https://huggingface.co/drbaph/MiniMax-H3-Turbo-Lora-ComfyUI/resolve/main/minimax_h3_turbo_v4_step600_ema_pruned_comfyui.safetensors|optional
+minimax|loras|minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors|https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors|optional
+minimax|vae_approx|taeh3.safetensors|https://huggingface.co/Kijai/MiniMax-H3-TAE/resolve/main/vae_approx/taeh3.safetensors|optional
+minimax|loras|minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors|https://huggingface.co/Kutches/minmax/resolve/main/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors|optional
+
+# MiniMax H3 user LoRA only.
+minimax|loras|HMNSFW_AIO_V2.safetensors|https://huggingface.co/jmew1989/CMFUI/resolve/main/MMH3/HMNSFW_AIO_V2.safetensors|optional
