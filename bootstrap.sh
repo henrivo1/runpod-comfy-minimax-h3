@@ -23,6 +23,7 @@ MODEL_SETS="minimax"
 UPDATE_CUSTOM_NODES="${UPDATE_CUSTOM_NODES:-1}"
 MIN_FREE_GB="${MIN_FREE_GB:-25}"
 MODEL_DOWNLOAD_WORKERS="${MODEL_DOWNLOAD_WORKERS:-3}"
+GIT_CLONE_ATTEMPTS="${GIT_CLONE_ATTEMPTS:-6}"
 
 MANIFEST="${MANIFEST:-$SCRIPT_DIR/models.manifest}"
 NODE_MANIFEST="${NODE_MANIFEST:-$SCRIPT_DIR/custom-nodes.manifest}"
@@ -117,6 +118,17 @@ ensure_system_packages() {
     info "Installing missing system packages: ${missing[*]}"
     apt-get update -qq
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "${missing[@]}"
+}
+
+configure_git_transport() {
+    stage_begin "Configuring resilient GitHub transport"
+
+    # GitHub's public smart-HTTP endpoint can intermittently return malformed
+    # HTTP/2 responses that look like authentication failures. Force HTTP/1.1
+    # for every custom-node clone/update performed by this pod.
+    git config --global http.version HTTP/1.1
+    info "Git HTTP transport forced to HTTP/1.1."
+    stage_end
 }
 
 preflight_gpu_host() {
@@ -442,6 +454,8 @@ get_node() {
     local dir="$1"
     local url="$2"
     local target="$COMFY_ROOT/custom_nodes/$dir"
+    local attempt=1
+    local delay=2
 
     if [[ -d "$target/.git" ]]; then
         if [[ "$UPDATE_CUSTOM_NODES" == "1" ]]; then
@@ -459,9 +473,29 @@ get_node() {
     fi
 
     info "Cloning $dir"
-    git clone --depth=1 --filter=blob:none "$url" "$target" >/dev/null 2>&1 \
-        || git clone --depth=1 "$url" "$target" >/dev/null 2>&1 \
-        || die "Failed to clone $url"
+    while (( attempt <= GIT_CLONE_ATTEMPTS )); do
+        # A failed clone can leave a non-empty partial directory which prevents
+        # the next attempt, so always begin with a clean target.
+        rm -rf "$target"
+        info "Clone attempt $attempt/$GIT_CLONE_ATTEMPTS: $dir"
+
+        # Never pause unattended startup at a username/password prompt. Git's
+        # stderr intentionally remains visible in the boot log for diagnosis.
+        if GIT_TERMINAL_PROMPT=0 git clone --depth=1 --filter=blob:none "$url" "$target"; then
+            info "Cloned $dir successfully."
+            return 0
+        fi
+
+        rm -rf "$target"
+        if (( attempt < GIT_CLONE_ATTEMPTS )); then
+            warn "Clone attempt $attempt failed for $dir; retrying in ${delay}s."
+            sleep "$delay"
+            delay=$((delay * 2))
+        fi
+        attempt=$((attempt + 1))
+    done
+
+    die "Failed to clone $url after $GIT_CLONE_ATTEMPTS attempts."
 }
 
 install_custom_nodes() {
@@ -564,6 +598,7 @@ PY
 main() {
     TOTAL_STARTED="$(date +%s)"
     ensure_system_packages
+    configure_git_transport
     preflight_gpu_host
     wait_for_comfy_base
 
