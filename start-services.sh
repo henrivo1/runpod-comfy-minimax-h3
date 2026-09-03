@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="${WORKSPACE:-/workspace}"
 COMFY_ROOT="${COMFY_ROOT:-/workspace/runpod-slim/ComfyUI}"
 COMFY_VENV="${COMFY_VENV:-$COMFY_ROOT/.venv-cu128}"
+COMFY_PYTHON="${COMFY_PYTHON:-}"
 ARGS_FILE="${ARGS_FILE:-/workspace/runpod-slim/comfyui_args.txt}"
 STATE_DIR="${STATE_DIR:-$WORKSPACE/.runpod-minimax-h3}"
 STATE_FILE="${STATE_FILE:-$STATE_DIR/complete.state}"
@@ -45,12 +46,37 @@ wait_for_port() {
     return 1
 }
 
-detect_comfy_venv() {
-    local candidate
-    [[ -x "$COMFY_VENV/bin/python" ]] && return 0
-    for candidate in "$COMFY_ROOT"/.venv* "$COMFY_ROOT"/venv; do
-        if [[ -x "$candidate/bin/python" ]]; then
-            COMFY_VENV="$candidate"
+is_comfy_python() {
+    local candidate="$1"
+    [[ -x "$candidate" ]] || return 1
+    "$candidate" -c 'import torch' >/dev/null 2>&1
+}
+
+detect_comfy_python() {
+    local candidate pid
+    if [[ -n "$COMFY_PYTHON" ]] && is_comfy_python "$COMFY_PYTHON"; then
+        export COMFY_PYTHON
+        return 0
+    fi
+    for candidate in "$COMFY_VENV/bin/python" "$COMFY_ROOT"/.venv*/bin/python "$COMFY_ROOT"/venv/bin/python; do
+        if is_comfy_python "$candidate"; then
+            COMFY_PYTHON="$candidate"
+            export COMFY_PYTHON
+            return 0
+        fi
+    done
+    while IFS= read -r pid; do
+        candidate="$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)"
+        if is_comfy_python "$candidate"; then
+            COMFY_PYTHON="$candidate"
+            export COMFY_PYTHON
+            return 0
+        fi
+    done < <(pgrep -f 'python(3([.][0-9]+)?)?.*main[.]py' || true)
+    for candidate in "$(command -v python3 2>/dev/null || true)" /usr/bin/python3; do
+        if is_comfy_python "$candidate"; then
+            COMFY_PYTHON="$candidate"
+            export COMFY_PYTHON
             return 0
         fi
     done
@@ -62,10 +88,10 @@ wait_for_base() {
     local i
     for i in $(seq 1 150); do
         [[ -d "$COMFY_ROOT/models" && -d "$COMFY_ROOT/custom_nodes" ]] &&
-            detect_comfy_venv && break
+            detect_comfy_python && break
         sleep 2
     done
-    [[ -x "$COMFY_VENV/bin/python" ]] || { warn "RunPod ComfyUI environment was not created."; return 1; }
+    [[ -x "$COMFY_PYTHON" ]] || { warn "Could not locate the Python interpreter used by ComfyUI."; return 1; }
     wait_for_port 8080 "FileBrowser" 60 2 || true
     wait_for_port 8888 "JupyterLab" 60 2 || true
     wait_for_port 8188 "Initial ComfyUI" 180 2 || true
@@ -74,6 +100,7 @@ wait_for_base() {
 setup_fingerprint() {
     {
         sha256sum "$SCRIPT_DIR/bootstrap.sh"
+        sha256sum "$SCRIPT_DIR/install-sageattention-sm120.sh"
         sha256sum "$SCRIPT_DIR/models.manifest"
         sha256sum "$SCRIPT_DIR/custom-nodes.manifest"
         sha256sum "$SCRIPT_DIR/workflows/$WORKFLOW_NAME"
@@ -110,7 +137,8 @@ required_nodes_present() {
 }
 
 install_complete() {
-    detect_comfy_venv || return 1
+    detect_comfy_python || return 1
+    "$COMFY_PYTHON" -c 'import sageattention' >/dev/null 2>&1 || return 1
     mandatory_models_present || return 1
     required_nodes_present || return 1
     [[ -f "$COMFY_ROOT/user/default/workflows/$WORKFLOW_NAME" ]]
@@ -134,7 +162,7 @@ fast_restart_eligible() {
 
 run_bootstrap() {
     log "Running full MiniMax H3 payload bootstrap"
-    COMFY_ROOT="$COMFY_ROOT" COMFY_VENV="$COMFY_VENV" bash "$SCRIPT_DIR/bootstrap.sh"
+    COMFY_ROOT="$COMFY_ROOT" COMFY_VENV="$COMFY_VENV" COMFY_PYTHON="$COMFY_PYTHON" bash "$SCRIPT_DIR/bootstrap.sh"
 }
 
 write_state() {
@@ -167,9 +195,9 @@ start_comfy() {
     log "Starting ComfyUI with MiniMax H3"
     (
         cd "$COMFY_ROOT"
-        export PATH="$COMFY_VENV/bin:$PATH"
+        export PATH="$(dirname "$COMFY_PYTHON"):$PATH"
         # shellcheck disable=SC2086
-        nohup "$COMFY_VENV/bin/python" main.py $fixed_args \
+        nohup "$COMFY_PYTHON" main.py $fixed_args \
             > "$WORKSPACE/comfyui-custom.log" 2>&1 < /dev/null &
         echo $! > "$WORKSPACE/comfyui-custom.pid"
     )
@@ -239,4 +267,3 @@ main() {
 }
 
 main "$@"
-

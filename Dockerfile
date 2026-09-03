@@ -1,13 +1,13 @@
 FROM runpod/comfyui:cuda13.0
 
-# Small diagnostic tools are baked into the wrapper so fresh pods do not spend
-# time installing them and troubleshooting commands are always available.
+# Build and diagnostic tools are baked into the wrapper so SageAttention can
+# compile on the attached SM120 GPU and troubleshooting commands are available.
 RUN apt-get update -qq \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-      iproute2 lsof procps psmisc \
+      build-essential git iproute2 lsof procps psmisc python3-dev python3-pip \
  && rm -rf /var/lib/apt/lists/*
 
-COPY bootstrap.sh start-services.sh models.manifest custom-nodes.manifest /opt/runpod-setup/
+COPY bootstrap.sh start-services.sh install-sageattention-sm120.sh models.manifest custom-nodes.manifest /opt/runpod-setup/
 COPY workflows/ /opt/runpod-setup/workflows/
 COPY docker-entrypoint.sh /runpod-custom-entrypoint.sh
 RUN chmod +x /runpod-custom-entrypoint.sh /opt/runpod-setup/*.sh

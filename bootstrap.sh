@@ -17,6 +17,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE="${WORKSPACE:-/workspace}"
 COMFY_ROOT="${COMFY_ROOT:-/workspace/runpod-slim/ComfyUI}"
 COMFY_VENV="${COMFY_VENV:-$COMFY_ROOT/.venv-cu128}"
+COMFY_PYTHON="${COMFY_PYTHON:-}"
 PIP_CONSTRAINT_FILE="${PIP_CONSTRAINT_FILE:-/opt/comfyui-runtime-constraints.txt}"
 
 MODEL_SETS="minimax"
@@ -72,37 +73,73 @@ set_enabled() {
     [[ ",$MODEL_SETS," == *",$wanted,"* ]]
 }
 
+is_comfy_python() {
+    local candidate="$1"
+    [[ -x "$candidate" ]] || return 1
+    "$candidate" -c 'import torch' >/dev/null 2>&1
+}
+
+detect_comfy_python() {
+    local candidate pid
+
+    if [[ -n "$COMFY_PYTHON" ]] && is_comfy_python "$COMFY_PYTHON"; then
+        export COMFY_PYTHON
+        return 0
+    fi
+
+    if is_comfy_python "$COMFY_VENV/bin/python"; then
+        COMFY_PYTHON="$COMFY_VENV/bin/python"
+        export COMFY_PYTHON
+        return 0
+    fi
+
+    for candidate in "$COMFY_ROOT"/.venv*/bin/python "$COMFY_ROOT"/venv/bin/python; do
+        if is_comfy_python "$candidate"; then
+            COMFY_PYTHON="$candidate"
+            export COMFY_PYTHON
+            return 0
+        fi
+    done
+
+    while IFS= read -r pid; do
+        candidate="$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)"
+        if is_comfy_python "$candidate"; then
+            COMFY_PYTHON="$candidate"
+            export COMFY_PYTHON
+            return 0
+        fi
+    done < <(pgrep -f 'python(3([.][0-9]+)?)?.*main[.]py' || true)
+
+    for candidate in "$(command -v python3 2>/dev/null || true)" /usr/bin/python3; do
+        if is_comfy_python "$candidate"; then
+            COMFY_PYTHON="$candidate"
+            export COMFY_PYTHON
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 wait_for_comfy_base() {
     stage_begin "Waiting for the official RunPod ComfyUI base"
     local i
     for i in $(seq 1 120); do
         if [[ -d "$COMFY_ROOT/models" && -d "$COMFY_ROOT/custom_nodes" ]]; then
-            if [[ -x "$COMFY_VENV/bin/python" ]]; then
+            if detect_comfy_python; then
                 info "ComfyUI root: $COMFY_ROOT"
-                info "ComfyUI Python: $COMFY_VENV/bin/python"
+                info "ComfyUI Python: $COMFY_PYTHON"
                 stage_end
                 return 0
             fi
-
-            # Future-proofing in case RunPod renames its venv later.
-            local candidate
-            for candidate in "$COMFY_ROOT"/.venv* "$COMFY_ROOT"/venv; do
-                if [[ -x "$candidate/bin/python" ]]; then
-                    COMFY_VENV="$candidate"
-                    info "Detected ComfyUI venv: $COMFY_VENV"
-                    export COMFY_VENV
-                    stage_end
-                    return 0
-                fi
-            done
         fi
         sleep 2
     done
-    die "Timed out waiting for $COMFY_ROOT and its RunPod-managed Python environment."
+    die "Timed out waiting for $COMFY_ROOT and a Python interpreter containing PyTorch."
 }
 
 ensure_system_packages() {
-    local packages=(git curl ca-certificates python3 python3-venv iproute2 lsof procps psmisc)
+    local packages=(git curl ca-certificates python3 python3-dev python3-pip python3-venv build-essential iproute2 lsof procps psmisc)
     local missing=()
     local p
 
@@ -549,7 +586,7 @@ install_node_requirements() {
         fi
 
         info "pip requirements: $node"
-        if "$COMFY_VENV/bin/python" -m pip install -q "${pip_args[@]}" -r "$req"; then
+        if "$COMFY_PYTHON" -m pip install -q "${pip_args[@]}" -r "$req"; then
             printf '%s' "$hash" > "$marker"
         else
             die "Python requirements failed for $node ($req)"
@@ -557,8 +594,14 @@ install_node_requirements() {
     done < "$NODE_MANIFEST"
 
     # Small dependencies used by the supplied workflows/nodes.
-    "$COMFY_VENV/bin/python" -m pip install -q "${pip_args[@]}" piexif lark librosa
+    "$COMFY_PYTHON" -m pip install -q "${pip_args[@]}" piexif lark librosa
     stage_end
+}
+
+install_sageattention() {
+    COMFY_PYTHON="$COMFY_PYTHON" \
+    SAGEATTN_STATE_DIR="$NODE_STATE" \
+    bash "$SCRIPT_DIR/install-sageattention-sm120.sh"
 }
 
 install_workflows() {
@@ -575,7 +618,7 @@ install_workflows() {
 
 verify_comfy_gpu() {
     stage_begin "Verifying ComfyUI GPU environment"
-    "$COMFY_VENV/bin/python" - <<'PY'
+    "$COMFY_PYTHON" - <<'PY'
 import sys
 import torch
 
@@ -605,6 +648,7 @@ main() {
     ensure_hf_downloader
     install_custom_nodes
     install_node_requirements
+    install_sageattention
     download_models
     install_workflows
     verify_comfy_gpu

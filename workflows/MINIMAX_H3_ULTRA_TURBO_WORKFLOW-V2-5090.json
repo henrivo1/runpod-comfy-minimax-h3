@@ -942,7 +942,7 @@
       ],
       "flags": {},
       "order": 109,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "name": "model",
@@ -971,11 +971,11 @@
       },
       "widgets_values": [
         "auto",
-        true
+        false
       ],
       "widgets_values_named": {
         "sage_attention": "auto",
-        "allow_compile": true
+        "allow_compile": false
       }
     },
     {
@@ -1815,7 +1815,7 @@
       ],
       "flags": {},
       "order": 107,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "name": "model",
@@ -1844,11 +1844,11 @@
       },
       "widgets_values": [
         "auto",
-        true
+        false
       ],
       "widgets_values_named": {
         "sage_attention": "auto",
-        "allow_compile": true
+        "allow_compile": false
       }
     },
     {
@@ -4736,7 +4736,7 @@
       ],
       "flags": {},
       "order": 106,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "name": "model",
@@ -4765,11 +4765,11 @@
       },
       "widgets_values": [
         "auto",
-        true
+        false
       ],
       "widgets_values_named": {
         "sage_attention": "auto",
-        "allow_compile": true
+        "allow_compile": false
       }
     },
     {
@@ -5332,7 +5332,7 @@
       ],
       "flags": {},
       "order": 105,
-      "mode": 4,
+      "mode": 0,
       "inputs": [
         {
           "name": "model",
@@ -5361,11 +5361,11 @@
       },
       "widgets_values": [
         "auto",
-        true
+        false
       ],
       "widgets_values_named": {
         "sage_attention": "auto",
-        "allow_compile": true
+        "allow_compile": false
       }
     },
     {
