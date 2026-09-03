@@ -7,6 +7,7 @@ COMFY_PYTHON="${COMFY_PYTHON:-$(command -v python3)}"
 SAGEATTN_SOURCE_REF="${SAGEATTN_SOURCE_REF:-d1a57a546c3d395b1ffcbeecc66d81db76f3b4b5}"
 SAGEATTN_STATE_DIR="${SAGEATTN_STATE_DIR:-/workspace/.runpod-node-deps}"
 SAGEATTN_STATE_FILE="$SAGEATTN_STATE_DIR/sageattention-sm120.state"
+SAGEATTN_BUILD_LOG="${SAGEATTN_BUILD_LOG:-/workspace/sageattention-build.log}"
 
 info() { printf '  -> %s\n' "$*"; }
 die()  { printf '  [ERROR] %s\n' "$*" >&2; exit 1; }
@@ -44,23 +45,35 @@ if [[ -z "$cuda_home" ]]; then
 fi
 [[ -x "$cuda_home/bin/nvcc" ]] || die "Could not locate nvcc under CUDA_HOME=$cuda_home"
 
+# Torch's CUDAContextLight header imports all four of these CUDA development
+# headers. Runtime-only CUDA images can contain nvcc and the shared libraries
+# while still omitting the headers, which otherwise fails only after a long
+# SageAttention compile.
+for header in cusparse.h cublas_v2.h cublasLt.h cusolverDn.h; do
+    [[ -f "$cuda_home/include/$header" ]] || \
+        die "Missing CUDA development header $cuda_home/include/$header. Rebuild the image with the CUDA 13 cuSPARSE, cuBLAS, and cuSOLVER development packages."
+done
+
 pip_args=(--disable-pip-version-check --no-input)
 if "$COMFY_PYTHON" -m pip install --help 2>/dev/null | grep -q -- '--break-system-packages'; then
     pip_args+=(--break-system-packages)
 fi
 
 info "Compiling SageAttention for SM120 with Torch $torch_version / CUDA $torch_cuda."
+info "Full compiler output will be saved to $SAGEATTN_BUILD_LOG."
 "$COMFY_PYTHON" -m pip install "${pip_args[@]}" --upgrade-strategy only-if-needed \
     ninja packaging setuptools wheel
 
+mkdir -p "$(dirname "$SAGEATTN_BUILD_LOG")"
 CUDA_HOME="$cuda_home" \
 TORCH_CUDA_ARCH_LIST="12.0" \
-MAX_JOBS="${MAX_JOBS:-4}" \
-EXT_PARALLEL="${EXT_PARALLEL:-4}" \
-NVCC_APPEND_FLAGS="${NVCC_APPEND_FLAGS:---threads 8}" \
+MAX_JOBS="${MAX_JOBS:-1}" \
+EXT_PARALLEL="${EXT_PARALLEL:-1}" \
+NVCC_APPEND_FLAGS="${NVCC_APPEND_FLAGS:---threads=1}" \
 "$COMFY_PYTHON" -m pip install "${pip_args[@]}" \
     --no-cache-dir --no-build-isolation --no-deps --force-reinstall \
-    "git+https://github.com/thu-ml/SageAttention.git@$SAGEATTN_SOURCE_REF"
+    "git+https://github.com/thu-ml/SageAttention.git@$SAGEATTN_SOURCE_REF" \
+    2>&1 | tee "$SAGEATTN_BUILD_LOG"
 
 "$COMFY_PYTHON" - <<'PY'
 import torch

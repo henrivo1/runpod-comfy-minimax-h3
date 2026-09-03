@@ -17,6 +17,10 @@ preview, and workflow assets.
 - Automatic first-install ComfyUI restart.
 - Continuous ComfyUI health supervision and recovery.
 - Automatic SageAttention source build for CUDA 13 / RTX 5090 (`sm_120a`).
+- CUDA 13 cuBLAS, cuSPARSE, and cuSOLVER development headers required by the
+  PyTorch extension build are included in the image.
+- Conservative single-worker SageAttention compilation to avoid build-memory
+  spikes on first boot.
 - Automatic detection of either RunPod's system Python or a ComfyUI venv.
 - MiniMax H3 workflow patches set to the Blackwell-safe `auto` mode.
 - Immutable GHCR `sha-<full-git-commit>` images only.
@@ -41,7 +45,9 @@ automatic dispatcher, while disabling compilation avoids CUDA-graph reuse paths
 that can produce incorrect output.
 
 Build progress and any failure are written to
-`/workspace/start-services-boot.log`. Advanced overrides include
-`SAGEATTN_SOURCE_REF` and `MAX_JOBS`.
+`/workspace/start-services-boot.log`, with the complete SageAttention compiler
+output also saved to `/workspace/sageattention-build.log`. Advanced overrides
+include `SAGEATTN_SOURCE_REF`, `MAX_JOBS`, `EXT_PARALLEL`,
+`NVCC_APPEND_FLAGS`, and `SAGEATTN_BUILD_LOG`.
 
 See `SETUP-GUIDE.md` for deployment settings.
